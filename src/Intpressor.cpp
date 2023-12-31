@@ -2,13 +2,18 @@
 
 namespace Intpressor
 {
-    std::vector<unsigned char> compress(const std::vector<int> &values, const std::vector<int> &sizes)
+    int compress(const int *values, const int *sizes, int numValues, char *bytes)
     {
-        int totalSize = std::accumulate(std::begin(sizes), std::end(sizes), 0);
+        int totalSize = 0;
+        for (int i = 0; i < numValues; i++)
+        {
+            totalSize += sizes[i];
+        }
         int bitIndex = 0;
-        std::vector<unsigned char> bytes;
-        std::vector<bool> bits(totalSize, 0);
-        for (int valueIndex = 0; valueIndex < values.size(); valueIndex++)
+        int byteIndex = 0;
+        bool bits[MAX_VALUES];
+        memset(bits, 0, sizeof(bits));
+        for (int valueIndex = 0; valueIndex < numValues; valueIndex++)
         {
             int size = sizes[valueIndex];
             int value = values[valueIndex];
@@ -18,49 +23,40 @@ namespace Intpressor
             }
             bitIndex += size;
         }
-        size_t remainder = bits.size() % 8;
-        if (remainder != 0)
-        {
-            for (size_t i = 0; i < 8 - remainder; ++i)
-            {
-                bits.push_back(false);
-            }
-        }
-        for (size_t i = 0; i < bits.size(); i += 8)
+        int numBytes = 0;
+        for (int i = 0; i < totalSize; i += 8)
         {
             unsigned char byte = 0;
-            for (size_t j = 0; j < 8; ++j)
+            for (int j = 0; j < 8; ++j)
             {
                 byte |= (bits[i + j] << (7 - j));
             }
-            bytes.push_back(byte);
+            bytes[i / 8] = byte;
+            numBytes++;
         }
-        return bytes;
+        return numBytes;
     }
 
-    std::vector<int> extract(const std::vector<unsigned char> &bytes, const std::vector<int> &sizes)
+    void extract(const char *bytes, const int *sizes, int numValues, int *values)
     {
-        std::vector<int> values;
-        std::vector<bool> bits;
-        for (unsigned char byte : bytes)
-        {
-            for (int i = 7; i >= 0; i--)
-            {
-                bits.push_back((byte & (1 << i)) != 0);
-            }
-        }
         int bitIndex = 0;
-        for (int size : sizes)
+        int byteIndex = 0;
+        for (int valueIndex = 0; valueIndex < numValues; valueIndex++)
         {
+            int size = sizes[valueIndex];
             int value = 0;
-            for (int i = bitIndex; i < bitIndex + size; i++)
+            for (int i = 0; i < size; i++)
             {
-                value = (value << 1) | static_cast<int>(bits[i]);
-            }
-            values.push_back(value);
-            bitIndex += size;
-        }
-        return values;
-    }
+                value = (value << 1) | static_cast<int>((bytes[byteIndex] & (1 << (7 - bitIndex))) != 0);
+                bitIndex++;
 
+                if (bitIndex >= 8)
+                {
+                    bitIndex = 0;
+                    byteIndex++;
+                }
+            }
+            values[valueIndex] = value;
+        }
+    }
 }
